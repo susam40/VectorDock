@@ -16,7 +16,7 @@ import { toast } from "sonner";
 
 export default function DocumentsPage() {
   const { data: docs, isLoading } = useDocuments();
-  const { data: collections } = useCollections();
+  const { data: collections, isLoading: collectionsLoading } = useCollections();
   const upload = useUploadDocument();
   const ingestUrl = useIngestUrl();
   const del = useDeleteDocument();
@@ -29,9 +29,11 @@ export default function DocumentsPage() {
         description="Alım, ayrıştırma, parçalama ve gömme — bilgi tabanınızın operasyonel görünümü."
       />
       <main className="flex-1 space-y-8 p-6">
-        {collections?.length ? (
+        {collectionsLoading ? (
+          <Skeleton className="h-64 w-full" />
+        ) : (
           <UploadZone
-            collections={collections}
+            collections={collections ?? []}
             onUploadFiles={async (files, collectionId) => {
               for (const f of files) {
                 await upload.mutateAsync({ file: f, collectionId });
@@ -42,8 +44,6 @@ export default function DocumentsPage() {
             }}
             disabled={upload.isPending || ingestUrl.isPending}
           />
-        ) : (
-          <Skeleton className="h-64 w-full" />
         )}
         {isLoading || !docs ? (
           <Skeleton className="h-96 w-full" />
@@ -52,9 +52,7 @@ export default function DocumentsPage() {
             documents={docs}
             onDelete={(id) => {
               void del.mutateAsync(id).then(() =>
-                toast.success(
-                  "Silindi (örnek: yalnızca istemci tarafından eklenen yüklemeler tamamen kalkar)",
-                ),
+                toast.success("Belge silindi"),
               );
             }}
             onReindex={(id) => {

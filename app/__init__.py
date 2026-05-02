@@ -1,0 +1,1 @@
+"""VectorDock FastAPI application package."""

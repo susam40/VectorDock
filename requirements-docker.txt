@@ -15,9 +15,8 @@ psycopg2-binary>=2.9.9
 redis>=5.2.0
 arq>=0.26.0
 
-# Ingestion / embeddings
+# Ingestion / embeddings (torch: CPU wheel installed in Dockerfile)
 sentence-transformers>=3.3.0
-torch>=2.2.0
 langchain-text-splitters>=0.3.0
 tiktoken>=0.8.0
 pymupdf>=1.24.0

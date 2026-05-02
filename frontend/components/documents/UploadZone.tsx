@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,18 @@ export function UploadZone({
   const [url, setUrl] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (defaultCollectionId) {
+      setCollectionId(defaultCollectionId);
+      return;
+    }
+    if (!collectionId && collections[0]?.id) {
+      setCollectionId(collections[0].id);
+    }
+  }, [collections, defaultCollectionId, collectionId]);
+
+  const noCollection = collections.length === 0;
+
   const submitFiles = async (files: File[]) => {
     if (!collectionId) {
       toast.error("Önce bir koleksiyon seçin");
@@ -68,17 +81,27 @@ export function UploadZone({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: ACCEPT,
-    disabled: disabled || !collectionId,
+    disabled: disabled || !collectionId || noCollection,
     multiple: true,
   });
 
   return (
     <div className="space-y-6">
+      {noCollection ? (
+        <div className="bg-muted/40 text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
+          Yükleme için önce bir{" "}
+          <Link href="/collections" className="text-primary font-medium underline underline-offset-4">
+            koleksiyon oluşturun
+          </Link>
+          .
+        </div>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>Koleksiyon</Label>
           <Select
-            value={collectionId}
+            value={collectionId || undefined}
             onValueChange={(v) => {
               if (v) setCollectionId(v);
             }}
@@ -99,9 +122,13 @@ export function UploadZone({
 
       <div
         {...getRootProps()}
-        className={`border-border bg-muted/30 hover:bg-muted/50 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 transition-colors ${
+        className={`border-border bg-muted/30 hover:bg-muted/50 flex min-h-40 flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 transition-colors ${
           isDragActive ? "border-primary bg-primary/5" : ""
-        } ${disabled ? "pointer-events-none opacity-50" : ""}`}
+        } ${
+          disabled || !collectionId || noCollection
+            ? "pointer-events-none cursor-not-allowed opacity-50"
+            : "cursor-pointer"
+        }`}
       >
         <input {...getInputProps()} />
         <Upload className="text-muted-foreground mb-3 size-8" />
@@ -129,7 +156,7 @@ export function UploadZone({
           <Button
             type="button"
             variant="secondary"
-            disabled={disabled || !url.trim()}
+            disabled={disabled || !url.trim() || !collectionId || noCollection}
             onClick={async () => {
               if (!collectionId) {
                 toast.error("Önce bir koleksiyon seçin");
