@@ -50,10 +50,13 @@ export default function DocumentsPage() {
         ) : (
           <DocumentList
             documents={docs}
-            onDelete={(id) => {
-              void del.mutateAsync(id).then(() =>
-                toast.success("Belge silindi"),
-              );
+            onDelete={async (id) => {
+              try {
+                await del.mutateAsync(id);
+                toast.success("Belge silindi");
+              } catch {
+                toast.error("Belge silinemedi");
+              }
             }}
             onReindex={(id) => {
               void reindex.mutateAsync(id).then(() =>

@@ -57,7 +57,10 @@ export function useDeleteDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteDocument(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.documents }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: qk.documents });
+      await qc.refetchQueries({ queryKey: qk.documents });
+    },
   });
 }
 

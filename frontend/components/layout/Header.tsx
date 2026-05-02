@@ -17,7 +17,6 @@ export function Header({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
             <Badge variant="secondary" className="font-mono text-xs">
-              örnek veri
             </Badge>
           </div>
           {description ? (

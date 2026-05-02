@@ -1,7 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Document } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -23,9 +34,11 @@ export function DocumentCard({
   onReindex,
 }: {
   doc: Document;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => void | Promise<void>;
   onReindex?: (id: string) => void;
 }) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
   return (
     <Card className="flex flex-col">
       <CardHeader className="space-y-1 pb-2">
@@ -74,15 +87,46 @@ export function DocumentCard({
           </Button>
         ) : null}
         {onDelete ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive"
-            onClick={() => onDelete(doc.id)}
-          >
-            <Trash2 className="mr-1 size-3.5" />
-            Sil
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="mr-1 size-3.5" />
+              Sil
+            </Button>
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogContent showCloseButton={false} className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Belgeyi sil</DialogTitle>
+                  <DialogDescription>
+                    “{doc.name}” dosyasını silmek istediğinize emin misiniz?
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="gap-2 sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setDeleteOpen(false)}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={async () => {
+                      setDeleteOpen(false);
+                      await onDelete(doc.id);
+                    }}
+                  >
+                    Sil
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
         ) : null}
       </CardFooter>
     </Card>

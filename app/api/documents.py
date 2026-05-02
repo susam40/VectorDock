@@ -5,11 +5,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.db.models import Collection, Document, DocumentChunk
+from app.db.models import Collection, Document, DocumentChunk, utcnow
 from app.db.session import get_db
 from app.schemas.documents import ChunkOut, DocumentOut, chunk_to_out, document_to_out
 from app.services.extraction import detect_source_type
@@ -28,7 +28,9 @@ class IngestUrlBody(BaseModel):
 
 @router.get("", response_model=list[DocumentOut], response_model_by_alias=True)
 async def list_documents(db: AsyncSession = Depends(get_db)) -> list[DocumentOut]:
-    r = await db.execute(select(Document).order_by(Document.uploaded_at.desc()))
+    r = await db.execute(
+        select(Document).where(Document.deleted_at.is_(None)).order_by(Document.uploaded_at.desc())
+    )
     return [document_to_out(d) for d in r.scalars().all()]
 
 
@@ -101,7 +103,7 @@ async def upload_document(
 @router.get("/{document_id}", response_model=DocumentOut, response_model_by_alias=True)
 async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> DocumentOut:
     doc = await db.get(Document, document_id)
-    if not doc:
+    if not doc or doc.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
     return document_to_out(doc)
 
@@ -109,7 +111,7 @@ async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db
 @router.get("/{document_id}/chunks", response_model=list[ChunkOut], response_model_by_alias=True)
 async def get_chunks(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> list[ChunkOut]:
     doc = await db.get(Document, document_id)
-    if not doc:
+    if not doc or doc.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
     r = await db.execute(
         select(DocumentChunk)
@@ -126,7 +128,7 @@ async def reindex_document(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     doc = await db.get(Document, document_id)
-    if not doc:
+    if not doc or doc.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
     pool = getattr(request.app.state, "arq", None)
     if pool is None:
@@ -139,17 +141,14 @@ async def reindex_document(
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> None:
+    res = await db.execute(
+        update(Document)
+        .where(Document.id == document_id, Document.deleted_at.is_(None))
+        .values(deleted_at=utcnow())
+    )
+    await db.commit()
+    if res.rowcount:
+        return
     doc = await db.get(Document, document_id)
     if not doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
-    path = Path(doc.storage_path)
-    db.delete(doc)
-    await db.commit()
-    if path.is_file():
-        try:
-            path.unlink()
-            parent = path.parent
-            if parent.is_dir() and not any(parent.iterdir()):
-                parent.rmdir()
-        except OSError:
-            pass

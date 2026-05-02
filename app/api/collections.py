@@ -22,7 +22,9 @@ router = APIRouter()
 
 async def _doc_counts(session: AsyncSession) -> dict[uuid.UUID, int]:
     r = await session.execute(
-        select(Document.collection_id, func.count(Document.id)).group_by(Document.collection_id)
+        select(Document.collection_id, func.count(Document.id))
+        .where(Document.deleted_at.is_(None))
+        .group_by(Document.collection_id)
     )
     return {cid: int(n) for cid, n in r.all()}
 
@@ -50,7 +52,11 @@ async def get_collection(collection_id: uuid.UUID, db: AsyncSession = Depends(ge
     row = await db.get(Collection, collection_id)
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "collection not found")
-    n = await db.scalar(select(func.count()).select_from(Document).where(Document.collection_id == collection_id))
+    n = await db.scalar(
+        select(func.count())
+        .select_from(Document)
+        .where(Document.collection_id == collection_id, Document.deleted_at.is_(None))
+    )
     return collection_to_out(row, int(n or 0))
 
 
@@ -64,7 +70,11 @@ async def update_collection(
     apply_patch(row, body)
     await db.commit()
     await db.refresh(row)
-    n = await db.scalar(select(func.count()).select_from(Document).where(Document.collection_id == collection_id))
+    n = await db.scalar(
+        select(func.count())
+        .select_from(Document)
+        .where(Document.collection_id == collection_id, Document.deleted_at.is_(None))
+    )
     return collection_to_out(row, int(n or 0))
 
 
@@ -73,7 +83,11 @@ async def remove_collection(collection_id: uuid.UUID, db: AsyncSession = Depends
     row = await db.get(Collection, collection_id)
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "collection not found")
-    n = await db.scalar(select(func.count()).select_from(Document).where(Document.collection_id == collection_id))
+    n = await db.scalar(
+        select(func.count())
+        .select_from(Document)
+        .where(Document.collection_id == collection_id, Document.deleted_at.is_(None))
+    )
     if n and int(n) > 0:
         raise HTTPException(
             status.HTTP_409_CONFLICT,

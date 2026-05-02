@@ -29,6 +29,9 @@ class IngestionService:
         if not doc:
             logger.warning("ingestion: document %s not found", document_id)
             return
+        if doc.deleted_at is not None:
+            logger.info("ingestion: skip soft-deleted document %s", document_id)
+            return
 
         path = Path(doc.storage_path)
         if not path.is_file():

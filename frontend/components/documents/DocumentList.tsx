@@ -12,7 +12,7 @@ export function DocumentList({
   onReindex,
 }: {
   documents: Document[];
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => void | Promise<void>;
   onReindex?: (id: string) => void;
 }) {
   const [q, setQ] = useState("");

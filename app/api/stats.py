@@ -17,10 +17,21 @@ router = APIRouter()
 @router.get("", response_model=StatsOverviewOut, response_model_by_alias=True)
 async def get_stats(db: AsyncSession = Depends(get_db)) -> StatsOverviewOut:
     settings = get_settings()
-    total_docs = int(await db.scalar(select(func.count()).select_from(Document)) or 0)
-    indexed_chunks = int(await db.scalar(select(func.count()).select_from(DocumentChunk)) or 0)
+    active_doc = Document.deleted_at.is_(None)
+    total_docs = int(await db.scalar(select(func.count()).select_from(Document).where(active_doc)) or 0)
+    indexed_chunks = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(DocumentChunk)
+            .join(Document, DocumentChunk.document_id == Document.id)
+            .where(active_doc)
+        )
+        or 0
+    )
     active_cols = int(await db.scalar(select(func.count()).select_from(Collection)) or 0)
-    storage = int(await db.scalar(select(func.coalesce(func.sum(Document.size_bytes), 0))) or 0)
+    storage = int(
+        await db.scalar(select(func.coalesce(func.sum(Document.size_bytes), 0)).where(active_doc)) or 0
+    )
     return StatsOverviewOut(
         total_documents=total_docs,
         indexed_chunks=indexed_chunks,
