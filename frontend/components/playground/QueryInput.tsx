@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Collection, PlaygroundQueryInput } from "@/lib/types";
+import { fetchOllamaModels } from "@/lib/api/playground";
+
+const DEFAULT_OLLAMA = "qwen3.5:397b-cloud";
 
 export function QueryInput({
   collections,
@@ -36,6 +39,25 @@ export function QueryInput({
     useState<PlaygroundQueryInput["searchType"]>("hybrid");
   const [topK, setTopK] = useState(8);
   const [threshold, setThreshold] = useState(0.72);
+  const [ollamaModel, setOllamaModel] = useState(DEFAULT_OLLAMA);
+  const [ollamaSuggestions, setOllamaSuggestions] = useState<string[]>([
+    DEFAULT_OLLAMA,
+    "qwen3:latest",
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchOllamaModels()
+      .then((r) => {
+        if (cancelled || !r.models.length) return;
+        const merged = [...new Set([...r.models, DEFAULT_OLLAMA])];
+        setOllamaSuggestions(merged);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
@@ -46,6 +68,21 @@ export function QueryInput({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Belgeleriniz hakkında soru yazın…"
         />
+      </div>
+      <div className="space-y-2">
+        <Label>Ollama modeli (cloud: …-cloud etiketi)</Label>
+        <Input
+          value={ollamaModel}
+          onChange={(e) => setOllamaModel(e.target.value)}
+          placeholder={DEFAULT_OLLAMA}
+          list="ollama-model-suggestions"
+          className="font-mono text-sm"
+        />
+        <datalist id="ollama-model-suggestions">
+          {ollamaSuggestions.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -126,6 +163,7 @@ export function QueryInput({
             searchType,
             topK,
             threshold,
+            ollamaModel: ollamaModel.trim() || undefined,
           })
         }
       >

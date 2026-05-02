@@ -37,14 +37,25 @@ export default function PlaygroundPage() {
           <QueryInput
             collections={collections}
             onSubmit={async (input) => {
-              const r = await run.mutateAsync(input);
-              setResult(r);
+              setResult(null);
+              try {
+                const r = await run.mutateAsync(input);
+                setResult(r);
+              } catch {
+                /* usePlaygroundQuery error state */
+              }
             }}
             loading={run.isPending}
           />
         ) : (
           <Skeleton className="h-64 w-full" />
         )}
+
+        {run.isError ? (
+          <p className="text-destructive text-sm">
+            {run.error instanceof Error ? run.error.message : "İstek başarısız"}
+          </p>
+        ) : null}
 
         {run.isPending ? (
           <Skeleton className="h-[480px] w-full" />
@@ -59,8 +70,8 @@ export default function PlaygroundPage() {
               <CardHeader>
                 <CardTitle className="text-base">LLM yanıtı</CardTitle>
                 <CardDescription>
-                  Jetonlar girdi/çıktı: {result.tokens.input} / {result.tokens.output}{" "}
-                  (toplam {result.tokens.total})
+                  Model: <span className="font-mono">{result.llmModel}</span> — jetonlar girdi/çıktı:{" "}
+                  {result.tokens.input} / {result.tokens.output} (toplam {result.tokens.total})
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

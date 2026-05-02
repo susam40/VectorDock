@@ -1,6 +1,14 @@
 import type { PlaygroundQueryInput, PlaygroundResponse } from "@/lib/types";
 import { apiFetch, parseJson } from "@/lib/api/client";
 
+export async function fetchOllamaModels(): Promise<{
+  models: string[];
+  fallback?: boolean;
+}> {
+  const res = await apiFetch("/api/playground/ollama-models");
+  return parseJson(res);
+}
+
 export async function runPlaygroundQuery(
   input: PlaygroundQueryInput,
 ): Promise<PlaygroundResponse> {

@@ -15,6 +15,7 @@ class PlaygroundQueryBody(BaseModel):
     search_type: Literal["semantic", "hybrid", "bm25"] = Field(alias="searchType")
     top_k: int = Field(alias="topK")
     threshold: float
+    ollama_model: str | None = Field(default=None, alias="ollamaModel")
 
 
 class PipelineStepOut(BaseModel):
@@ -64,6 +65,7 @@ class PlaygroundResponseOut(BaseModel):
     pipeline: list[PipelineStepOut]
     chunks: list[RetrievedChunkOut]
     final_prompt: str = Field(serialization_alias="finalPrompt")
+    llm_model: str = Field(serialization_alias="llmModel")
     answer: str
     tokens: TokensOut
     latency_breakdown: LatencyBreakdownOut = Field(serialization_alias="latencyBreakdown")
@@ -84,6 +86,7 @@ def stub_playground_response(body: PlaygroundQueryBody) -> PlaygroundResponseOut
         pipeline=[step],
         chunks=[],
         final_prompt="",
+        llm_model="—",
         answer=msg,
         tokens=TokensOut(input=0, output=0, total=0),
         latency_breakdown=LatencyBreakdownOut(

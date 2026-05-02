@@ -68,6 +68,7 @@ export interface PlaygroundQueryInput {
   searchType: "semantic" | "hybrid" | "bm25";
   topK: number;
   threshold: number;
+  ollamaModel?: string;
 }
 
 export interface PipelineStep {
@@ -93,6 +94,7 @@ export interface PlaygroundResponse {
   pipeline: PipelineStep[];
   chunks: RetrievedChunk[];
   finalPrompt: string;
+  llmModel: string;
   answer: string;
   tokens: { input: number; output: number; total: number };
   latencyBreakdown: {
