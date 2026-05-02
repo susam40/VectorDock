@@ -10,6 +10,8 @@ import {
   ScrollText,
   PanelLeftClose,
   PanelLeft,
+  MessageCircle,
+  NotebookPen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,12 +24,15 @@ const items = [
   { href: "/playground", label: nav.playground, icon: FlaskConical },
   { href: "/collections", label: nav.collections, icon: FolderKanban },
   { href: "/logs", label: nav.logs, icon: ScrollText },
+  { href: "/prompts", label: nav.prompts, icon: NotebookPen },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggle = useUiStore((s) => s.toggleSidebar);
+  const assistantOpen = useUiStore((s) => s.assistantOpen);
+  const toggleAssistant = useUiStore((s) => s.toggleAssistant);
 
   return (
     <aside
@@ -53,7 +58,20 @@ export function Sidebar() {
           {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
         </Button>
       </div>
-      <nav className="flex flex-1 flex-col gap-1 p-2">
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+        <Button
+          type="button"
+          variant={assistantOpen ? "secondary" : "ghost"}
+          className={cn(
+            "hover:bg-sidebar-accent w-full justify-start gap-3 rounded-md px-2 font-medium",
+            collapsed && "justify-center px-0",
+          )}
+          onClick={() => toggleAssistant()}
+          title={collapsed ? "Yardım asistanı" : undefined}
+        >
+          <MessageCircle className="size-4 shrink-0 opacity-80" />
+          {!collapsed && "Yardım asistanı"}
+        </Button>
         {items.map(({ href, label, icon: Icon }) => {
           const active =
             pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));
@@ -75,7 +93,7 @@ export function Sidebar() {
         })}
       </nav>
       {!collapsed && (
-        <div className="text-muted-foreground border-t p-3 text-xs leading-snug">
+        <div className="text-muted-foreground shrink-0 border-t p-3 text-xs leading-snug">
           Yönetim konsolu · RAG izlenebilirliği
         </div>
       )}

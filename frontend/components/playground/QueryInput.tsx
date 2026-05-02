@@ -15,13 +15,8 @@ import {
 } from "@/components/ui/select";
 import type { Collection, PlaygroundQueryInput } from "@/lib/types";
 import { fetchOllamaModels } from "@/lib/api/playground";
-import {
-  DEFAULT_PLAYGROUND_PROMPTS,
-  loadPlaygroundPrompts,
-  savePlaygroundPrompts,
-  type PlaygroundPromptState,
-} from "@/lib/playgroundPrompts";
-import { Textarea } from "@/components/ui/textarea";
+import { loadPlaygroundPrompts } from "@/lib/playgroundPrompts";
+import Link from "next/link";
 
 const DEFAULT_OLLAMA = "qwen3.5:397b-cloud";
 
@@ -51,14 +46,6 @@ export function QueryInput({
     DEFAULT_OLLAMA,
     "qwen3:latest",
   ]);
-  const [prompts, setPrompts] = useState<PlaygroundPromptState>(
-    DEFAULT_PLAYGROUND_PROMPTS,
-  );
-
-  useEffect(() => {
-    setPrompts(loadPlaygroundPrompts());
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     fetchOllamaModels()
@@ -73,67 +60,15 @@ export function QueryInput({
     };
   }, []);
 
-  function patchPrompts(patch: Partial<PlaygroundPromptState>) {
-    setPrompts((prev) => {
-      const next = { ...prev, ...patch };
-      savePlaygroundPrompts(next);
-      return next;
-    });
-  }
-
   return (
     <div className="space-y-4 rounded-lg border p-4">
-      <details className="bg-muted/30 space-y-3 rounded-md border p-3">
-        <summary className="cursor-pointer text-sm font-medium">
-          RAG istem şablonları
-        </summary>
-        <p className="text-muted-foreground text-xs">
-          Yerelde saklanır. Yer tutucular:{" "}
-          <code className="bg-muted rounded px-1">{`{context}`}</code>,{" "}
-          <code className="bg-muted rounded px-1">{`{question}`}</code> (bağlam
-          yokken yalnızca soru).
-        </p>
-        <div className="space-y-2">
-          <Label className="text-xs">Sistem</Label>
-          <Textarea
-            value={prompts.systemPrompt}
-            onChange={(e) => patchPrompts({ systemPrompt: e.target.value })}
-            className="min-h-[72px] font-mono text-xs"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-xs">Kullanıcı — bağlam varken</Label>
-          <Textarea
-            value={prompts.userPromptWithContext}
-            onChange={(e) =>
-              patchPrompts({ userPromptWithContext: e.target.value })
-            }
-            className="min-h-[88px] font-mono text-xs"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-xs">Kullanıcı — bağlam yokken</Label>
-          <Textarea
-            value={prompts.userPromptNoContext}
-            onChange={(e) =>
-              patchPrompts({ userPromptNoContext: e.target.value })
-            }
-            className="min-h-[88px] font-mono text-xs"
-          />
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="text-xs"
-          onClick={() => {
-            setPrompts(DEFAULT_PLAYGROUND_PROMPTS);
-            savePlaygroundPrompts(DEFAULT_PLAYGROUND_PROMPTS);
-          }}
-        >
-          Varsayılanlara dön
-        </Button>
-      </details>
+      <p className="text-muted-foreground text-sm">
+        RAG istem şablonları{" "}
+        <Link href="/prompts" className="text-primary font-medium underline-offset-4 hover:underline">
+          İstemler
+        </Link>{" "}
+        sayfasından düzenlenir.
+      </p>
       <div className="space-y-2">
         <Label>Sorgu</Label>
         <Input
@@ -229,7 +164,8 @@ export function QueryInput({
       <Button
         type="button"
         disabled={loading || !query.trim() || !collectionId}
-        onClick={() =>
+        onClick={() => {
+          const p = loadPlaygroundPrompts();
           onSubmit({
             query: query.trim(),
             collectionId,
@@ -237,13 +173,13 @@ export function QueryInput({
             topK,
             threshold,
             ollamaModel: ollamaModel.trim() || undefined,
-            systemPrompt: prompts.systemPrompt.trim() || undefined,
+            systemPrompt: p.systemPrompt.trim() || undefined,
             userPromptWithContext:
-              prompts.userPromptWithContext.trim() || undefined,
+              p.userPromptWithContext.trim() || undefined,
             userPromptNoContext:
-              prompts.userPromptNoContext.trim() || undefined,
-          })
-        }
+              p.userPromptNoContext.trim() || undefined,
+          });
+        }}
       >
         {loading ? "İşleniyor…" : "Geri getir + LLM çalıştır"}
       </Button>

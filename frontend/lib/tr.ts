@@ -7,6 +7,7 @@ export const nav = {
   playground: "Sorgu laboratuvarı",
   collections: "Koleksiyonlar",
   logs: "Günlükler",
+  prompts: "Promptlar",
 } as const;
 
 export const docStatusTr: Record<DocStatus, string> = {

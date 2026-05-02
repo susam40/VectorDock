@@ -1,0 +1,21 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[turkish]{babel}
+\usepackage{microtype}
+\usepackage{hyperref}
+
+\title{\textbf{Hidrasyon Hatası -- Ne Anlama Geliyor?}}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Özet}
+SSR (\textit{Server-Side Rendering}) ile gönderilen HTML, tarayıcıda React (veya Next.js) tarafından \emph{hidrate} edilir; yani DOM, React bileşen ağacına yeniden bağlanır.
+
+\section*{Hata ne zaman oluşur?}
+\textbf{Hydration failed} (hidrasyon başarısız) hatası, sunucunun ürettiği HTML ile istemcinin (tarayıcının) aynı bileşeni \textbf{ilk render} ettiğinde ürettiği HTML'in \textbf{uyuşmaması} durumunda ortaya çıkar.
+
+\end{document}

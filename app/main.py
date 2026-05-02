@@ -11,6 +11,7 @@ from app.api.collections import router as collections_router
 from app.api.documents import router as documents_router
 from app.api.logs import router as logs_router
 from app.api.playground import router as playground_router
+from app.api.assistant import router as assistant_router
 from app.api.stats import router as stats_router
 from app.config import get_settings
 
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(stats_router, prefix="/api/stats")
     app.include_router(logs_router, prefix="/api/logs")
     app.include_router(playground_router, prefix="/api/playground")
+    app.include_router(assistant_router, prefix="/api/assistant")
     return app
 
 

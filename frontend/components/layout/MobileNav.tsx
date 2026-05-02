@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, LayoutDashboard, Files, FlaskConical, FolderKanban, ScrollText } from "lucide-react";
+import {
+  Menu,
+  LayoutDashboard,
+  Files,
+  FlaskConical,
+  FolderKanban,
+  ScrollText,
+  MessageCircle,
+  NotebookPen,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -13,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { nav } from "@/lib/tr";
+import { useUiStore } from "@/lib/store/store";
 
 const items = [
   { href: "/dashboard", label: nav.dashboard, icon: LayoutDashboard },
@@ -20,13 +30,17 @@ const items = [
   { href: "/playground", label: nav.playground, icon: FlaskConical },
   { href: "/collections", label: nav.collections, icon: FolderKanban },
   { href: "/logs", label: nav.logs, icon: ScrollText },
+  { href: "/prompts", label: nav.prompts, icon: NotebookPen },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
+  const assistantOpen = useUiStore((s) => s.assistantOpen);
+  const toggleAssistant = useUiStore((s) => s.toggleAssistant);
 
   return (
-    <div className="border-border bg-background flex h-14 items-center border-b px-3 md:hidden">
+    <div className="border-border bg-background flex h-14 items-center justify-between border-b px-3 md:hidden">
+      <div className="flex min-w-0 flex-1 items-center">
       <Sheet>
         <SheetTrigger
           render={
@@ -61,7 +75,17 @@ export function MobileNav() {
           </nav>
         </SheetContent>
       </Sheet>
-      <span className="ml-3 font-semibold">VectorDock</span>
+      <span className="ml-3 truncate font-semibold">VectorDock</span>
+      </div>
+      <Button
+        type="button"
+        variant={assistantOpen ? "secondary" : "outline"}
+        size="icon-sm"
+        onClick={() => toggleAssistant()}
+        aria-label="Yardım asistanı"
+      >
+        <MessageCircle className="size-4" />
+      </Button>
     </div>
   );
 }
