@@ -16,6 +16,9 @@ class PlaygroundQueryBody(BaseModel):
     top_k: int = Field(alias="topK")
     threshold: float
     ollama_model: str | None = Field(default=None, alias="ollamaModel")
+    system_prompt: str | None = Field(default=None, alias="systemPrompt")
+    user_prompt_with_context: str | None = Field(default=None, alias="userPromptWithContext")
+    user_prompt_no_context: str | None = Field(default=None, alias="userPromptNoContext")
 
 
 class PipelineStepOut(BaseModel):

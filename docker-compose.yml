@@ -41,6 +41,9 @@ services:
     build: .
     environment:
       <<: *app-env
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +57,8 @@ services:
     environment:
       <<: *app-env
     volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
       - uploads:/data/uploads
       - hf_cache:/root/.cache/huggingface
     depends_on:
@@ -63,13 +68,23 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
 
   worker:
     build: .
     environment:
       <<: *app-env
     volumes:
+      - ./app:/app/app
       - uploads:/data/uploads
       - hf_cache:/root/.cache/huggingface
     depends_on:
@@ -81,14 +96,26 @@ services:
         condition: service_completed_successfully
     command: ["arq", "app.workers.settings.WorkerSettings"]
 
+  # Kaynak bind mount + next dev: image build yalnızca bağımlılık / araç için; kod değişince rebuild gerekmez.
   web:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL .env içinde gerekli}
+    image: node:20-alpine
+    working_dir: /app
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL .env içinde gerekli}
+      HOSTNAME: "0.0.0.0"
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./frontend:/app
+      - web_node_modules:/app/node_modules
     ports:
       - "${WEB_PORT:?WEB_PORT .env içinde gerekli}:3000"
+    command:
+      [
+        "sh",
+        "-c",
+        "npm ci && npm run dev -- --hostname 0.0.0.0 --port 3000",
+      ]
     depends_on:
       api:
         condition: service_started
@@ -97,3 +124,4 @@ volumes:
   pgdata:
   uploads:
   hf_cache:
+  web_node_modules:

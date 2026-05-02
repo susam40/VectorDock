@@ -69,6 +69,9 @@ export interface PlaygroundQueryInput {
   topK: number;
   threshold: number;
   ollamaModel?: string;
+  systemPrompt?: string;
+  userPromptWithContext?: string;
+  userPromptNoContext?: string;
 }
 
 export interface PipelineStep {
