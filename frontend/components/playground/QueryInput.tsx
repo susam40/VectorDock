@@ -17,13 +17,29 @@ import type { Collection, PlaygroundQueryInput } from "@/lib/types";
 import { loadPlaygroundPrompts } from "@/lib/playgroundPrompts";
 import Link from "next/link";
 
-const OLLAMA_MODELS = [
-  "qwen/qwen3-coder-480b-a35b-instruct",
-  "z-ai/glm4.7",
-  "stepfun-ai/step-3.5-flash",
-  "google/gemma-3n-e4b-it",
+const OLLAMA_MODEL_OPTIONS = [
+  {
+    key: "qwen3-coder-480b",
+    label: "Qwen3 Coder 480B",
+    model: "qwen/qwen3-coder-480b-a35b-instruct",
+  },
+  {
+    key: "glm4.7",
+    label: "GLM 4.7",
+    model: "z-ai/glm4.7",
+  },
+  {
+    key: "step-3.5-flash",
+    label: "Step 3.5 Flash",
+    model: "stepfun-ai/step-3.5-flash",
+  },
+  {
+    key: "gemma-3n-e4b",
+    label: "Gemma 3N E4B",
+    model: "google/gemma-3n-e4b-it",
+  },
 ] as const;
-const DEFAULT_OLLAMA = OLLAMA_MODELS[0];
+const DEFAULT_OLLAMA_KEY = OLLAMA_MODEL_OPTIONS[0].key;
 
 export function QueryInput({
   collections,
@@ -46,7 +62,9 @@ export function QueryInput({
     useState<PlaygroundQueryInput["searchType"]>("hybrid");
   const [topK, setTopK] = useState(8);
   const [threshold, setThreshold] = useState(0.72);
-  const [ollamaModel, setOllamaModel] = useState(DEFAULT_OLLAMA);
+  const [ollamaModelKey, setOllamaModelKey] = useState<string>(DEFAULT_OLLAMA_KEY);
+  const selectedCollectionName =
+    collections.find((collection) => collection.id === collectionId)?.name ?? "";
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
@@ -67,14 +85,19 @@ export function QueryInput({
       </div>
       <div className="space-y-2">
         <Label>Ollama modeli</Label>
-        <Select value={ollamaModel} onValueChange={setOllamaModel}>
+        <Select
+          value={ollamaModelKey}
+          onValueChange={(value) => {
+            if (value) setOllamaModelKey(value);
+          }}
+        >
           <SelectTrigger className="font-mono text-sm">
             <SelectValue placeholder="Model sec" />
           </SelectTrigger>
           <SelectContent>
-            {OLLAMA_MODELS.map((model) => (
-              <SelectItem key={model} value={model} className="font-mono text-sm">
-                {model}
+            {OLLAMA_MODEL_OPTIONS.map((option) => (
+              <SelectItem key={option.key} value={option.key} className="font-mono text-sm">
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -90,7 +113,7 @@ export function QueryInput({
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Koleksiyon" />
+              <SelectValue placeholder="Koleksiyon">{selectedCollectionName}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {collections.map((c) => (
@@ -154,13 +177,15 @@ export function QueryInput({
         disabled={loading || !query.trim() || !collectionId}
         onClick={() => {
           const p = loadPlaygroundPrompts();
+          const selectedModel =
+            OLLAMA_MODEL_OPTIONS.find((option) => option.key === ollamaModelKey)?.model;
           onSubmit({
             query: query.trim(),
             collectionId,
             searchType,
             topK,
             threshold,
-            ollamaModel: ollamaModel.trim() || undefined,
+            ollamaModel: selectedModel,
             systemPrompt: p.systemPrompt.trim() || undefined,
             userPromptWithContext:
               p.userPromptWithContext.trim() || undefined,
