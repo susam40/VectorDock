@@ -37,11 +37,11 @@ async def playground_query(
         return await run_playground_rag(db, settings, body, ollama_model=model)
     except httpx.HTTPStatusError as e:
         detail = (e.response.text or str(e))[:800]
-        raise HTTPException(status_code=502, detail=f"Ollama HTTP hatası: {detail}") from e
+        raise HTTPException(status_code=502, detail=f"LLM HTTP hatası: {detail}") from e
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=502,
-            detail=f"Ollama'ya bağlanılamadı ({settings.ollama_base_url}): {e}",
+            detail=f"LLM servisine bağlanılamadı ({settings.ollama_base_url}): {e}",
         ) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,11 +14,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Collection, PlaygroundQueryInput } from "@/lib/types";
-import { fetchOllamaModels } from "@/lib/api/playground";
 import { loadPlaygroundPrompts } from "@/lib/playgroundPrompts";
 import Link from "next/link";
 
-const DEFAULT_OLLAMA = "qwen3.5:397b-cloud";
+const OLLAMA_MODELS = [
+  "qwen/qwen3-coder-480b-a35b-instruct",
+  "z-ai/glm4.7",
+  "stepfun-ai/step-3.5-flash",
+  "google/gemma-3n-e4b-it",
+] as const;
+const DEFAULT_OLLAMA = OLLAMA_MODELS[0];
 
 export function QueryInput({
   collections,
@@ -42,23 +47,6 @@ export function QueryInput({
   const [topK, setTopK] = useState(8);
   const [threshold, setThreshold] = useState(0.72);
   const [ollamaModel, setOllamaModel] = useState(DEFAULT_OLLAMA);
-  const [ollamaSuggestions, setOllamaSuggestions] = useState<string[]>([
-    DEFAULT_OLLAMA,
-    "qwen3:latest",
-  ]);
-  useEffect(() => {
-    let cancelled = false;
-    fetchOllamaModels()
-      .then((r) => {
-        if (cancelled || !r.models.length) return;
-        const merged = [...new Set([...r.models, DEFAULT_OLLAMA])];
-        setOllamaSuggestions(merged);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
@@ -78,19 +66,19 @@ export function QueryInput({
         />
       </div>
       <div className="space-y-2">
-        <Label>Ollama modeli (cloud: …-cloud etiketi)</Label>
-        <Input
-          value={ollamaModel}
-          onChange={(e) => setOllamaModel(e.target.value)}
-          placeholder={DEFAULT_OLLAMA}
-          list="ollama-model-suggestions"
-          className="font-mono text-sm"
-        />
-        <datalist id="ollama-model-suggestions">
-          {ollamaSuggestions.map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
+        <Label>Ollama modeli</Label>
+        <Select value={ollamaModel} onValueChange={setOllamaModel}>
+          <SelectTrigger className="font-mono text-sm">
+            <SelectValue placeholder="Model sec" />
+          </SelectTrigger>
+          <SelectContent>
+            {OLLAMA_MODELS.map((model) => (
+              <SelectItem key={model} value={model} className="font-mono text-sm">
+                {model}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">

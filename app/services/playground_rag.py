@@ -191,7 +191,7 @@ async def run_playground_rag(
     pipeline.append(
         PipelineStepOut(
             id="llm",
-            name=f"Ollama ({ollama_model})",
+            name=f"LLM ({ollama_model})",
             status="success",
             latency_ms=llm_ms,
             output=answer[:2000] + ("…" if len(answer) > 2000 else ""),
