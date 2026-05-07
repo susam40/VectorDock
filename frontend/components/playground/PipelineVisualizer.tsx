@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { pipelineStepStatusTr } from "@/lib/tr";
 
 export function PipelineVisualizer({ steps }: { steps: PipelineStep[] }) {
+  const formatSeconds = (ms: number) => `${(ms / 1000).toFixed(2)} sn`;
+
   return (
     <Card>
       <CardHeader>
@@ -34,7 +36,7 @@ export function PipelineVisualizer({ steps }: { steps: PipelineStep[] }) {
                   {pipelineStepStatusTr[s.status]}
                 </Badge>
                 <span className="text-muted-foreground font-mono text-xs">
-                  {s.latencyMs} ms
+                  {formatSeconds(s.latencyMs)}
                 </span>
               </div>
               {s.input ? (

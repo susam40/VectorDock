@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import type { Collection, PlaygroundQueryInput } from "@/lib/types";
 import { loadPlaygroundPrompts } from "@/lib/playgroundPrompts";
+import { saveSelectedLlmModel } from "@/lib/llmSelection";
 import Link from "next/link";
 
 const OLLAMA_MODEL_OPTIONS = [
@@ -65,6 +66,8 @@ export function QueryInput({
   const [ollamaModelKey, setOllamaModelKey] = useState<string>(DEFAULT_OLLAMA_KEY);
   const selectedCollectionName =
     collections.find((collection) => collection.id === collectionId)?.name ?? "";
+  const selectedModelLabel =
+    OLLAMA_MODEL_OPTIONS.find((option) => option.key === ollamaModelKey)?.label ?? "";
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
@@ -92,7 +95,7 @@ export function QueryInput({
           }}
         >
           <SelectTrigger className="font-mono text-sm">
-            <SelectValue placeholder="Model sec" />
+            <SelectValue>{selectedModelLabel || "Model sec"}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {OLLAMA_MODEL_OPTIONS.map((option) => (
@@ -113,7 +116,7 @@ export function QueryInput({
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Koleksiyon">{selectedCollectionName}</SelectValue>
+              <SelectValue>{selectedCollectionName || "Koleksiyon"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {collections.map((c) => (
@@ -179,6 +182,7 @@ export function QueryInput({
           const p = loadPlaygroundPrompts();
           const selectedModel =
             OLLAMA_MODEL_OPTIONS.find((option) => option.key === ollamaModelKey)?.model;
+          if (selectedModel) saveSelectedLlmModel(selectedModel);
           onSubmit({
             query: query.trim(),
             collectionId,

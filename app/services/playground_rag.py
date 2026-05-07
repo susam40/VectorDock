@@ -3,8 +3,9 @@ from __future__ import annotations
 import time
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.types import Float
 
 from app.config import Settings
 from app.db.models import Document, DocumentChunk
@@ -103,6 +104,77 @@ async def _semantic_retrieve(
     ]
 
 
+async def _bm25_retrieve(
+    session: AsyncSession,
+    collection_id: uuid.UUID,
+    query_text: str,
+    top_k: int,
+) -> list[RetrievedChunkOut]:
+    ts_query = func.websearch_to_tsquery("simple", query_text)
+    rank_expr = func.ts_rank_cd(func.to_tsvector("simple", DocumentChunk.content), ts_query)
+    stmt = (
+        select(
+            DocumentChunk.id,
+            DocumentChunk.content,
+            Document.filename,
+            cast(rank_expr, Float).label("bm25_score"),
+        )
+        .join(Document, DocumentChunk.document_id == Document.id)
+        .where(
+            Document.collection_id == collection_id,
+            Document.deleted_at.is_(None),
+            Document.status == "ready",
+            rank_expr > 0,
+        )
+        .order_by(rank_expr.desc())
+        .limit(top_k)
+    )
+    result = await session.execute(stmt)
+    return [
+        RetrievedChunkOut(
+            id=str(row.id),
+            text=row.content,
+            score=float(row.bm25_score),
+            rerank_score=None,
+            document_name=row.filename,
+        )
+        for row in result.all()
+    ]
+
+
+def _rrf_merge(
+    semantic_chunks: list[RetrievedChunkOut],
+    bm25_chunks: list[RetrievedChunkOut],
+    top_k: int,
+) -> list[RetrievedChunkOut]:
+    # Reciprocal Rank Fusion; stable and score-scale independent.
+    rrf_k = 60.0
+    merged: dict[str, RetrievedChunkOut] = {}
+    rrf_score_by_id: dict[str, float] = {}
+
+    for rank, chunk in enumerate(semantic_chunks, start=1):
+        rrf_score_by_id[chunk.id] = rrf_score_by_id.get(chunk.id, 0.0) + (1.0 / (rrf_k + rank))
+        if chunk.id not in merged:
+            merged[chunk.id] = chunk
+
+    for rank, chunk in enumerate(bm25_chunks, start=1):
+        rrf_score_by_id[chunk.id] = rrf_score_by_id.get(chunk.id, 0.0) + (1.0 / (rrf_k + rank))
+        if chunk.id not in merged:
+            merged[chunk.id] = chunk
+
+    ordered_ids = sorted(rrf_score_by_id.keys(), key=lambda chunk_id: rrf_score_by_id[chunk_id], reverse=True)
+    return [
+        RetrievedChunkOut(
+            id=merged[chunk_id].id,
+            text=merged[chunk_id].text,
+            score=rrf_score_by_id[chunk_id],
+            rerank_score=None,
+            document_name=merged[chunk_id].document_name,
+        )
+        for chunk_id in ordered_ids[:top_k]
+    ]
+
+
 async def run_playground_rag(
     session: AsyncSession,
     settings: Settings,
@@ -112,44 +184,74 @@ async def run_playground_rag(
 ) -> PlaygroundResponseOut:
     t_total0 = time.perf_counter()
     pipeline: list[PipelineStepOut] = []
+    col_id = uuid.UUID(body.collection_id)
 
-    t0 = time.perf_counter()
-    try:
-        qvec = await embed_query_text(settings.embedding_model, body.query)
-    except Exception as e:  # noqa: BLE001
-        embed_ms = int((time.perf_counter() - t0) * 1000)
+    qvec: list[float] | None = None
+    embed_ms = 0
+    if body.search_type != "bm25":
+        t0 = time.perf_counter()
+        try:
+            qvec = await embed_query_text(settings.embedding_model, body.query)
+        except Exception as e:  # noqa: BLE001
+            embed_ms = int((time.perf_counter() - t0) * 1000)
+            pipeline.append(
+                PipelineStepOut(
+                    id="embed",
+                    name="Sorgu gömme",
+                    status="error",
+                    latency_ms=embed_ms,
+                    output=str(e),
+                )
+            )
+            raise
         pipeline.append(
             PipelineStepOut(
                 id="embed",
                 name="Sorgu gömme",
-                status="error",
+                status="success",
                 latency_ms=embed_ms,
-                output=str(e),
+                input=body.query[:500],
+                output=f"dim={len(qvec)}",
             )
         )
-        raise
-    embed_ms = int((time.perf_counter() - t0) * 1000)
-    pipeline.append(
-        PipelineStepOut(
-            id="embed",
-            name="Sorgu gömme",
-            status="success",
-            latency_ms=embed_ms,
-            input=body.query[:500],
-            output=f"dim={len(qvec)}",
+    else:
+        pipeline.append(
+            PipelineStepOut(
+                id="embed",
+                name="Sorgu gömme",
+                status="skipped",
+                latency_ms=0,
+                output="BM25 modunda embedding kullanılmaz",
+            )
         )
-    )
 
     t0 = time.perf_counter()
-    col_id = uuid.UUID(body.collection_id)
-    search_label = {"semantic": "Anlamsal", "hybrid": "Hibrit (şimdilik anlamsal)", "bm25": "BM25 (şimdilik anlamsal)"}[
-        body.search_type
-    ]
-    chunks = await _semantic_retrieve(session, col_id, qvec, body.top_k, body.threshold)
+    if body.search_type == "semantic":
+        chunks = await _semantic_retrieve(session, col_id, qvec or [], body.top_k, body.threshold)
+        note = f"{len(chunks)} parça (mod=anlamsal, eşik≥{body.threshold:.2f})"
+    elif body.search_type == "bm25":
+        chunks = await _bm25_retrieve(session, col_id, body.query, body.top_k)
+        note = f"{len(chunks)} parça (mod=bm25)"
+    else:
+        semantic_chunks = await _semantic_retrieve(
+            session,
+            col_id,
+            qvec or [],
+            max(body.top_k * 2, body.top_k),
+            body.threshold,
+        )
+        bm25_chunks = await _bm25_retrieve(
+            session,
+            col_id,
+            body.query,
+            max(body.top_k * 2, body.top_k),
+        )
+        chunks = _rrf_merge(semantic_chunks, bm25_chunks, body.top_k)
+        note = (
+            f"{len(chunks)} parça (mod=hibrit, semantik={len(semantic_chunks)}, "
+            f"bm25={len(bm25_chunks)}, eşik≥{body.threshold:.2f})"
+        )
     retr_ms = int((time.perf_counter() - t0) * 1000)
-    note = f"{len(chunks)} parça (eşik≥{body.threshold:.2f})"
-    if body.search_type != "semantic":
-        note += f" — {search_label}"
     pipeline.append(
         PipelineStepOut(
             id="retrieve",

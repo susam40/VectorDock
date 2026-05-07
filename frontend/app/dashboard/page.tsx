@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { HealthIndicator } from "@/components/dashboard/HealthIndicator";
@@ -16,16 +17,22 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { loadSelectedLlmModel } from "@/lib/llmSelection";
 
 export default function DashboardPage() {
   const { data: stats, isLoading: s1 } = useStats();
   const { data: activity, isLoading: s2 } = useActivity();
+  const [selectedLlmModel, setSelectedLlmModel] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedLlmModel(loadSelectedLlmModel());
+  }, []);
 
   return (
     <>
       <Header
         title="Gösterge paneli"
-        description="Sistem sağlığı, ölçek sinyalleri ve aktivite — FastAPI bağlanana kadar örnek veri."
+        description="Sistem sağlığı, ölçek sinyalleri ve aktivite."
       />
       <main className="flex-1 space-y-6 p-6">
         {s1 || !stats ? (
@@ -88,7 +95,7 @@ export default function DashboardPage() {
                   <p className="text-muted-foreground text-xs">
                     LLM:{" "}
                     <span className="text-foreground font-mono">
-                      {stats.llmProvider}
+                      {selectedLlmModel ?? stats.llmProvider}
                     </span>
                   </p>
                   <div className="border-border mt-3 border-t pt-3">

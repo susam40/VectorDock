@@ -16,6 +16,7 @@ export function LatencyBreakdown({
 }: {
   data: PlaygroundResponse["latencyBreakdown"];
 }) {
+  const totalSeconds = (data.total / 1000).toFixed(2);
   const chartData = [
     { name: "Gömme", value: data.embedding },
     { name: "Geri getirme", value: data.retrieval },
@@ -57,7 +58,7 @@ export function LatencyBreakdown({
           </PieChart>
         </ResponsiveContainer>
         <p className="text-muted-foreground text-center text-xs">
-          Toplam {data.total} ms
+          Toplam {totalSeconds} sn
         </p>
       </CardContent>
     </Card>

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -56,10 +56,41 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> StatsOverviewOut:
 
 
 @router.get("/activity", response_model=list[ActivityPointOut], response_model_by_alias=True)
-async def get_activity() -> list[ActivityPointOut]:
+async def get_activity(db: AsyncSession = Depends(get_db)) -> list[ActivityPointOut]:
     today = date.today()
+    start_day = today - timedelta(days=6)
+    day_expr = func.date(Document.uploaded_at)
+    rows = await db.execute(
+        select(
+            day_expr.label("day"),
+            func.count(Document.id).label("uploads"),
+            func.sum(case((Document.status == "failed", 1), else_=0)).label("errors"),
+        )
+        .where(
+            Document.deleted_at.is_(None),
+            day_expr >= start_day,
+        )
+        .group_by(day_expr)
+    )
+    by_day = {
+        row.day.isoformat(): {
+            "uploads": int(row.uploads or 0),
+            "errors": int(row.errors or 0),
+        }
+        for row in rows.all()
+    }
+
     out: list[ActivityPointOut] = []
-    for i in range(13, -1, -1):
+    for i in range(6, -1, -1):
         d = today - timedelta(days=i)
-        out.append(ActivityPointOut(date=d.isoformat(), queries=0, uploads=0, errors=0))
+        iso = d.isoformat()
+        day_data = by_day.get(iso, {"uploads": 0, "errors": 0})
+        out.append(
+            ActivityPointOut(
+                date=iso,
+                queries=0,
+                uploads=day_data["uploads"],
+                errors=day_data["errors"],
+            )
+        )
     return out
