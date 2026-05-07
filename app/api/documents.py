@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -106,6 +107,35 @@ async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db
     if not doc or doc.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
     return document_to_out(doc)
+
+
+@router.get("/{document_id}/file")
+async def get_document_file(
+    document_id: uuid.UUID,
+    download: bool = Query(default=False),
+    db: AsyncSession = Depends(get_db),
+) -> FileResponse:
+    doc = await db.get(Document, document_id)
+    if not doc or doc.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
+
+    file_path = Path(doc.storage_path)
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document file not found")
+
+    media_type = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "txt": "text/plain",
+    }.get((doc.source_type or "").lower(), "application/octet-stream")
+
+    disposition = "attachment" if download else "inline"
+    return FileResponse(
+        path=file_path,
+        media_type=media_type,
+        filename=doc.filename,
+        headers={"Content-Disposition": f'{disposition}; filename="{doc.filename}"'},
+    )
 
 
 @router.get("/{document_id}/chunks", response_model=list[ChunkOut], response_model_by_alias=True)

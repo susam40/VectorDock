@@ -1,15 +1,18 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { ChunkViewer } from "@/components/documents/ChunkViewer";
 import { MetadataEditor } from "@/components/documents/MetadataEditor";
 import { useChunks, useDocument } from "@/lib/hooks/useDocuments";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download, Eye } from "lucide-react";
 import { docStatusTr, embStatusTr } from "@/lib/tr";
+import { API_BASE } from "@/lib/api/client";
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -17,6 +20,9 @@ export default function DocumentDetailPage() {
   const router = useRouter();
   const { data: doc, isLoading } = useDocument(id);
   const { data: chunks, isLoading: cLoading } = useChunks(id);
+  const fileUrl = `${API_BASE}/api/documents/${id}/file`;
+  const downloadUrl = `${fileUrl}?download=1`;
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   return (
     <>
@@ -39,6 +45,38 @@ export default function DocumentDetailPage() {
           </div>
         )}
         {doc ? <MetadataEditor document={doc} /> : null}
+        {doc?.type === "pdf" ? (
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Orijinal PDF</h2>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+                  <Eye className="mr-1 size-3.5" />
+                  Onizle
+                </Button>
+                <a
+                  href={downloadUrl}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <Download className="mr-1 inline size-3.5" />
+                  Indir
+                </a>
+              </div>
+            </div>
+            <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+              <DialogContent
+                className="h-[92vh] w-[96vw] max-w-[96vw] overflow-hidden p-0 sm:max-w-[96vw]"
+                showCloseButton={false}
+              >
+                <iframe
+                  src={fileUrl}
+                  title={doc.name}
+                  className="block h-full w-full border-0"
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        ) : null}
         <div>
           <h2 className="mb-3 text-sm font-semibold">Parçalar</h2>
           {cLoading || !chunks ? (
