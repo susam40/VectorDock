@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,44 +18,20 @@ import { loadPlaygroundPrompts } from "@/lib/playgroundPrompts";
 import { saveSelectedLlmModel } from "@/lib/llmSelection";
 import Link from "next/link";
 
-const OLLAMA_MODEL_OPTIONS = [
-  {
-    key: "qwen3-coder-480b",
-    label: "Qwen3 Coder 480B",
-    model: "qwen/qwen3-coder-480b-a35b-instruct",
-  },
-  {
-    key: "glm4.7",
-    label: "GLM 4.7",
-    model: "z-ai/glm4.7",
-  },
-  {
-    key: "step-3.5-flash",
-    label: "Step 3.5 Flash",
-    model: "stepfun-ai/step-3.5-flash",
-  },
-  {
-    key: "gemma-3n-e4b",
-    label: "Gemma 3N E4B",
-    model: "google/gemma-3n-e4b-it",
-  },
-] as const;
-const DEFAULT_OLLAMA_KEY = OLLAMA_MODEL_OPTIONS[0].key;
-
 export function QueryInput({
   collections,
+  ollamaModels,
   defaultCollectionId,
   onSubmit,
   loading,
 }: {
   collections: Collection[];
+  ollamaModels: string[];
   defaultCollectionId?: string;
   onSubmit: (input: PlaygroundQueryInput) => void;
   loading?: boolean;
 }) {
-  const [query, setQuery] = useState(
-    "VectorDock’ta hibrit geri getirme nasıl çalışır?",
-  );
+  const [query, setQuery] = useState("");
   const [collectionId, setCollectionId] = useState(
     defaultCollectionId ?? collections[0]?.id ?? "",
   );
@@ -63,11 +39,19 @@ export function QueryInput({
     useState<PlaygroundQueryInput["searchType"]>("hybrid");
   const [topK, setTopK] = useState(8);
   const [threshold, setThreshold] = useState(0.72);
-  const [ollamaModelKey, setOllamaModelKey] = useState<string>(DEFAULT_OLLAMA_KEY);
+  const [ollamaModel, setOllamaModel] = useState<string>(ollamaModels[0] ?? "");
   const selectedCollectionName =
     collections.find((collection) => collection.id === collectionId)?.name ?? "";
-  const selectedModelLabel =
-    OLLAMA_MODEL_OPTIONS.find((option) => option.key === ollamaModelKey)?.label ?? "";
+  const selectedModelName = ollamaModels.includes(ollamaModel)
+    ? ollamaModel
+    : (ollamaModels[0] ?? "");
+
+  useEffect(() => {
+    if (!ollamaModels.length) return;
+    if (!ollamaModel || !ollamaModels.includes(ollamaModel)) {
+      setOllamaModel(ollamaModels[0]);
+    }
+  }, [ollamaModel, ollamaModels]);
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
@@ -89,18 +73,18 @@ export function QueryInput({
       <div className="space-y-2">
         <Label>Ollama modeli</Label>
         <Select
-          value={ollamaModelKey}
+          value={selectedModelName}
           onValueChange={(value) => {
-            if (value) setOllamaModelKey(value);
+            if (value) setOllamaModel(value);
           }}
         >
           <SelectTrigger className="font-mono text-sm">
-            <SelectValue>{selectedModelLabel || "Model sec"}</SelectValue>
+            <SelectValue>{selectedModelName || "Model seç"}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {OLLAMA_MODEL_OPTIONS.map((option) => (
-              <SelectItem key={option.key} value={option.key} className="font-mono text-sm">
-                {option.label}
+            {ollamaModels.map((modelName) => (
+              <SelectItem key={modelName} value={modelName} className="font-mono text-sm">
+                {modelName}
               </SelectItem>
             ))}
           </SelectContent>
@@ -180,8 +164,7 @@ export function QueryInput({
         disabled={loading || !query.trim() || !collectionId}
         onClick={() => {
           const p = loadPlaygroundPrompts();
-          const selectedModel =
-            OLLAMA_MODEL_OPTIONS.find((option) => option.key === ollamaModelKey)?.model;
+          const selectedModel = selectedModelName || undefined;
           if (selectedModel) saveSelectedLlmModel(selectedModel);
           onSubmit({
             query: query.trim(),

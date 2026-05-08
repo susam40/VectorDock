@@ -9,7 +9,7 @@ import { PipelineVisualizer } from "@/components/playground/PipelineVisualizer";
 import { RetrievalResults } from "@/components/playground/RetrievalResults";
 import { LatencyBreakdown } from "@/components/playground/LatencyBreakdown";
 import { useCollections } from "@/lib/hooks/useCollections";
-import { usePlaygroundQuery } from "@/lib/hooks/usePlayground";
+import { useOllamaModels, usePlaygroundQuery } from "@/lib/hooks/usePlayground";
 import type { PlaygroundResponse } from "@/lib/types";
 import {
   Card,
@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PlaygroundPage() {
   const { data: collections } = useCollections();
+  const models = useOllamaModels();
   const run = usePlaygroundQuery();
   const [result, setResult] = useState<PlaygroundResponse | null>(null);
 
@@ -30,12 +31,13 @@ export default function PlaygroundPage() {
     <>
       <Header
         title="Sorgu laboratuvarı"
-        description="Uçtan uca RAG: yeniden yazma → gömme → geri getirme → yeniden sıralama → istem → LLM. İzlenebilirlik demoları için."
+        description="Uçtan uca RAG hattını çalıştırın ve her adımın çıktısını inceleyin."
       />
       <main className="flex-1 space-y-6 p-6">
-        {collections?.length ? (
+        {collections?.length && models.data?.models?.length ? (
           <QueryInput
             collections={collections}
+            ollamaModels={models.data.models}
             onSubmit={async (input) => {
               setResult(null);
               try {
@@ -50,6 +52,12 @@ export default function PlaygroundPage() {
         ) : (
           <Skeleton className="h-64 w-full" />
         )}
+
+        {models.isError ? (
+          <p className="text-destructive text-sm">
+            {models.error instanceof Error ? models.error.message : "Model listesi alinamadi"}
+          </p>
+        ) : null}
 
         {run.isError ? (
           <p className="text-destructive text-sm">

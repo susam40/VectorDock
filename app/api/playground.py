@@ -22,8 +22,11 @@ async def list_ollama_models() -> dict:
             api_key=settings.ollama_api_key,
         )
         return {"models": names}
-    except (httpx.HTTPError, OSError, KeyError, TypeError, ValueError):
-        return {"models": [settings.ollama_chat_model], "fallback": True}
+    except (httpx.HTTPError, OSError, KeyError, TypeError, ValueError) as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Model listesi alinamadi ({settings.ollama_base_url}): {e}",
+        ) from e
 
 
 @router.post("/query", response_model=PlaygroundResponseOut, response_model_by_alias=True)

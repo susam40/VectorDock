@@ -4,7 +4,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { ChunkViewer } from "@/components/documents/ChunkViewer";
-import { MetadataEditor } from "@/components/documents/MetadataEditor";
 import { useChunks, useDocument } from "@/lib/hooks/useDocuments";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -44,7 +43,6 @@ export default function DocumentDetailPage() {
             <Badge variant="secondary">{doc.chunkCount} parça</Badge>
           </div>
         )}
-        {doc ? <MetadataEditor document={doc} /> : null}
         {doc?.type === "pdf" ? (
           <div>
             <div className="mb-3 flex items-center justify-between">

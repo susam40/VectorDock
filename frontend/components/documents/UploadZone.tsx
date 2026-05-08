@@ -56,6 +56,8 @@ export function UploadZone({
   }, [collections, defaultCollectionId, collectionId]);
 
   const noCollection = collections.length === 0;
+  const selectedCollectionName =
+    collections.find((collection) => collection.id === collectionId)?.name ?? "";
 
   const submitFiles = async (files: File[]) => {
     if (!collectionId) {
@@ -106,8 +108,10 @@ export function UploadZone({
               if (v) setCollectionId(v);
             }}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Koleksiyon seçin" />
+            <SelectTrigger className="w-full focus-visible:ring-0 focus-visible:border-input">
+              <SelectValue placeholder="Koleksiyon seçin">
+                {selectedCollectionName || "Koleksiyon seçin"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {collections.map((c) => (

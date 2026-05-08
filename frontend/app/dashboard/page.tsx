@@ -61,7 +61,7 @@ export default function DashboardPage() {
             <StatsCard
               title="Ort. sorgu gecikmesi"
               value={`${stats.avgQueryLatencyMs} ms`}
-              hint="yaklaşık p50 (sentetik)"
+              hint="yaklasik p50"
               icon={<Gauge className="size-4" />}
             />
             <StatsCard
