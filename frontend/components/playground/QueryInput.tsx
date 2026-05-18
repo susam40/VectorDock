@@ -71,19 +71,23 @@ export function QueryInput({
         />
       </div>
       <div className="space-y-2">
-        <Label>Ollama modeli</Label>
+        <Label>Yapay Zeka Modeli</Label>
         <Select
           value={selectedModelName}
           onValueChange={(value) => {
             if (value) setOllamaModel(value);
           }}
         >
-          <SelectTrigger className="font-mono text-sm">
+          <SelectTrigger className="h-auto min-h-8 w-full max-w-full font-mono text-sm whitespace-normal *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:whitespace-normal *:data-[slot=select-value]:break-all">
             <SelectValue>{selectedModelName || "Model seç"}</SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[min(100vw-2rem,42rem)]">
             {ollamaModels.map((modelName) => (
-              <SelectItem key={modelName} value={modelName} className="font-mono text-sm">
+              <SelectItem
+                key={modelName}
+                value={modelName}
+                className="font-mono text-sm whitespace-normal break-all"
+              >
                 {modelName}
               </SelectItem>
             ))}

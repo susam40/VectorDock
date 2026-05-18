@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/lib/store/store";
 import {
-  postAssistantChat,
+  streamAssistantChat,
   type AssistantHistoryMessage,
 } from "@/lib/api/assistant";
 
@@ -29,9 +29,11 @@ export function AssistantPanel() {
   const assistantSystemPrompt = useUiStore((s) => s.assistantSystemPrompt);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const loading = streaming;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,34 +41,87 @@ export function AssistantPanel() {
 
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || streaming) return;
     setInput("");
     setError(null);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const historyForRequest = messages;
     const userMsg: ChatMessage = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
-    setLoading(true);
-    try {
-      const { reply } = await postAssistantChat({
-        message: text,
-        history: messages,
-        system_prompt: assistantSystemPrompt.trim() || null,
+    setStreaming(true);
+
+    const appendAssistantDelta = (delta: string) => {
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant") {
+          return [
+            ...prev.slice(0, -1),
+            { role: "assistant", content: last.content + delta },
+          ];
+        }
+        return [...prev, { role: "assistant", content: delta }];
       });
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+    };
+
+    const finishStreaming = () => {
+      setStreaming(false);
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && !last.content.trim()) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+    };
+
+    try {
+      await streamAssistantChat(
+        {
+          message: text,
+          history: historyForRequest,
+          system_prompt: assistantSystemPrompt.trim() || null,
+        },
+        {
+          onDelta: appendAssistantDelta,
+          onDone: finishStreaming,
+          onError: (message) => {
+            finishStreaming();
+            setError(message);
+            setInput(text);
+          },
+        },
+        controller.signal,
+      );
     } catch (e) {
-      setMessages((prev) => prev.slice(0, -1));
+      if (controller.signal.aborted) {
+        setStreaming(false);
+        return;
+      }
+      finishStreaming();
       setInput(text);
       setError(e instanceof Error ? e.message : "İstek başarısız");
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [input, loading, messages, assistantSystemPrompt]);
+  }, [input, streaming, messages, assistantSystemPrompt]);
 
   const startNewSession = useCallback(() => {
-    if (loading) return;
+    if (streaming) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      setStreaming(false);
+    }
     setMessages([]);
     setInput("");
     setError(null);
-  }, [loading]);
+  }, [streaming]);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   return (
     <>
@@ -170,7 +225,12 @@ export function AssistantPanel() {
                 </ul>
               </div>
             ) : null}
-            {messages.map((m, i) => (
+            {messages.map((m, i) => {
+              const isStreamingReply =
+                streaming &&
+                m.role === "assistant" &&
+                i === messages.length - 1;
+              return (
               <div
                 key={i}
                 className={cn(
@@ -196,18 +256,32 @@ export function AssistantPanel() {
                       : "border-border/70 bg-card/90 text-card-foreground rounded-bl-md border shadow-sm backdrop-blur-sm",
                   )}
                 >
-                  <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                  <p className="whitespace-pre-wrap break-words">
+                    {m.content}
+                    {isStreamingReply ? (
+                      <span
+                        className="bg-violet-500/70 ml-0.5 inline-block h-4 w-0.5 animate-pulse align-text-bottom"
+                        aria-hidden
+                      />
+                    ) : null}
+                  </p>
                 </div>
               </div>
-            ))}
-            {loading ? (
-              <div className="border-border/60 bg-muted/50 text-muted-foreground flex max-w-[12rem] items-center gap-2 self-start rounded-2xl rounded-bl-md border px-3 py-2.5 text-sm shadow-sm">
-                <span className="flex gap-1">
-                  <span className="bg-muted-foreground/50 size-1.5 animate-bounce rounded-full [animation-delay:-0.2s]" />
-                  <span className="bg-muted-foreground/50 size-1.5 animate-bounce rounded-full [animation-delay:-0.1s]" />
-                  <span className="bg-muted-foreground/50 size-1.5 animate-bounce rounded-full" />
+              );
+            })}
+            {streaming && messages[messages.length - 1]?.role === "user" ? (
+              <div className="flex max-w-[min(100%,20rem)] flex-col gap-1 self-start items-start">
+                <span className="text-muted-foreground px-1 text-[0.65rem] font-medium uppercase tracking-wide">
+                  Asistan
                 </span>
-                <span>Yazılıyor…</span>
+                <div className="border-border/60 bg-muted/50 text-muted-foreground flex items-center gap-2 rounded-2xl rounded-bl-md border px-3.5 py-2.5 text-sm shadow-sm">
+                  <span className="flex gap-1">
+                    <span className="bg-muted-foreground/50 size-1.5 animate-bounce rounded-full [animation-delay:-0.2s]" />
+                    <span className="bg-muted-foreground/50 size-1.5 animate-bounce rounded-full [animation-delay:-0.1s]" />
+                    <span className="bg-muted-foreground/50 size-1.5 animate-bounce rounded-full" />
+                  </span>
+                  <span>Yazılıyor…</span>
+                </div>
               </div>
             ) : null}
             {error ? (

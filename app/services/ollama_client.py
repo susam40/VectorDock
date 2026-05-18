@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -45,6 +47,68 @@ async def ollama_chat(
         "eval_count": (usage or {}).get("completion_tokens"),
     }
     return content, meta
+
+
+def _coerce_text(value: Any) -> str:
+    while isinstance(value, dict):
+        value = value.get("text") or value.get("content")
+    if not value:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "".join(_coerce_text(item) for item in value)
+    return ""
+
+
+def _stream_chunk(data: dict[str, Any]) -> str:
+    parts: list[Any] = []
+    choice = (data.get("choices") or [None])[0]
+    if isinstance(choice, dict):
+        parts.extend(choice.get(k) for k in ("delta", "message"))
+        parts.append(choice.get("text"))
+    parts.extend(data.get(k) for k in ("content", "text"))
+    for part in parts:
+        if text := _coerce_text(part):
+            return text
+    return ""
+
+
+def _sse_payload(line: str) -> dict[str, Any] | None:
+    raw = line.strip().removeprefix("data:").strip()
+    if not raw or raw == "[DONE]":
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+async def ollama_chat_stream(
+    base_url: str,
+    model: str,
+    messages: list[dict[str, str]],
+    *,
+    timeout: float,
+    api_key: str | None = None,
+) -> AsyncIterator[str]:
+    url = ollama_api_root(base_url) + "/chat/completions"
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+    }
+    headers = _auth_headers(api_key)
+    read_timeout = timeout if timeout and timeout > 0 else None
+    client_timeout = httpx.Timeout(connect=10.0, read=read_timeout, write=30.0, pool=10.0)
+    async with httpx.AsyncClient(timeout=client_timeout) as client:
+        async with client.stream("POST", url, json=payload, headers=headers) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                data = _sse_payload(line)
+                if data and (chunk := _stream_chunk(data)):
+                    yield chunk
 
 
 async def ollama_list_model_names(
