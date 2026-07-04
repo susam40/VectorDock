@@ -1,240 +1,212 @@
 # VectorDock
 
-Kurumsal düzey **RAG** (Retrieval-Augmented Generation) platformu: belge alımı, vektör geri getirme, sorgu laboratuvarı ve yönetim arayüzü.
+Enterprise-grade **RAG** (Retrieval-Augmented Generation) platform for document ingestion, vector retrieval, query playground, and administration console.
 
-## Özellikler
+[Overview](#-overview) · [Key Features](#-key-features) · [Architecture](#-architecture) · [Quick Start (Docker)](#-quick-start-docker) · [Local Installation](#-local-installation) · [Environment Variables](#-environment-variables) · [Project Structure](#-project-structure)
 
-- **Koleksiyonlar** — parçalama, eşik, top-k ve gömme modeli ayarları
-- **Belge alımı** — dosya yükleme, URL’den içe aktarma, PDF/DOCX/TXT/Markdown desteği
-- **Arka plan işleme** — arq + Redis ile asenkron parçalama ve gömme
-- **Vektör arama** — PostgreSQL + pgvector ile anlamsal geri getirme
-- **Playground** — RAG sorguları, gecikme dökümü ve geri getirilen parçalar
-- **Asistan** — OpenAI uyumlu LLM sağlayıcısı (NVIDIA Integrate / Ollama)
-- **Dashboard** — belge, parça ve koleksiyon istatistikleri
+---
 
-## Mimari
+## 📖 Overview
+VectorDock is an enterprise-grade RAG (Retrieval-Augmented Generation) platform built to manage document collections, ingest various formats (PDF, DOCX, TXT, MD, and URLs), and perform high-performance semantic search.
 
-```
-┌─────────────┐     REST      ┌──────────────┐     arq      ┌─────────────┐
-│  Next.js    │ ────────────► │   FastAPI    │ ───────────► │   Worker    │
-│  frontend   │               │   (app/)     │              │  (ingestion)│
-└─────────────┘               └──────┬───────┘              └──────┬──────┘
-                                     │                             │
-                              ┌──────┴───────┐              ┌──────┴──────┐
-                              │  PostgreSQL  │              │    Redis    │
-                              │  + pgvector  │              │             │
-                              └──────────────┘              └─────────────┘
-```
+It leverages an asynchronous processing pipeline powered by `arq` and Redis to handle document chunking and embedding generation under the hood. All vectors are stored and indexed in PostgreSQL using the `pgvector` extension. An interactive Next.js administration console provides a central interface featuring a comprehensive metrics dashboard, a query playground with latency breakdown, and an OpenAI-compatible assistant chat with custom prompt template editing.
 
-| Katman | Teknoloji |
-|--------|-----------|
-| API | FastAPI, SQLAlchemy 2 (async), Pydantic Settings |
-| Kuyruk | arq, Redis |
-| Veritabanı | PostgreSQL 16, pgvector |
-| Gömme | sentence-transformers (varsayılan: `BAAI/bge-m3`, 1024 boyut) |
-| LLM | OpenAI uyumlu HTTP API (`OLLAMA_BASE_URL`) |
-| Frontend | Next.js 15, React 19, TanStack Query, shadcn/ui |
+---
 
-## Proje yapısı
+## ✨ Key Features
+- 📊 **Monitoring Dashboard (`/dashboard`)**: Instant statistics on document count, total chunks, collections count, and real-time activity logs.
+- 📁 **Collections Manager (`/collections`)**: Create and configure independent vector index collections with customized chunk sizes, overlap margins, distance thresholds, top-k configurations, and embedding model paths.
+- 📥 **Document Ingestion (`/documents`)**: Upload local files (PDF, DOCX, TXT, Markdown) or ingest content directly from external URLs.
+- ⚡ **Asynchronous Background Processing**: High-throughput processing pipeline utilizing `arq` queue workers and Redis to ensure non-blocking file uploads.
+- 🔍 **Vector Search**: PostgreSQL 16 backed by `pgvector` index extensions for robust and high-speed semantic retrieval.
+- 🧪 **Query Playground (`/playground`)**: Interactive workspace to test search queries, adjust similarity parameters, view real-time latency breakdowns, and inspect retrieved document chunks.
+- 🤖 **Assistant Chat (`/assistant` and `/prompts`)**: Integrated OpenAI-compatible assistant client supporting Ollama and other API providers with live system prompt tuning.
 
-```
-VectorDock/
-├── app/                        # Python uygulama paketi
-│   ├── main.py                 # FastAPI uygulaması ve router kayıtları
-│   ├── config.py               # Ortam değişkenleri (Settings)
-│   ├── api/                    # REST uçları
-│   │   ├── collections.py
-│   │   ├── documents.py
-│   │   ├── stats.py
-│   │   ├── logs.py
-│   │   ├── playground.py
-│   │   └── assistant.py
-│   ├── db/                     # SQLAlchemy modelleri ve oturum
-│   │   ├── models.py
-│   │   ├── session.py
-│   │   └── base.py
-│   ├── schemas/                # Pydantic istek/yanıt modelleri
-│   ├── services/               # İş mantığı
-│   │   ├── ingestion.py        # Belge işleme hattı
-│   │   ├── extraction.py       # PDF, DOCX, metin çıkarma
-│   │   ├── chunking.py         # Metin parçalama
-│   │   ├── embedding.py        # Vektör gömme
-│   │   ├── playground_rag.py   # RAG sorgu hattı
-│   │   ├── ollama_client.py    # LLM istemcisi
-│   │   └── assistant_prompt.py
-│   └── workers/                # arq işçisi
-│       ├── settings.py
-│       └── tasks.py
-├── alembic/                    # Veritabanı migrasyonları
-├── frontend/                   # Next.js yönetim konsolu
-│   ├── app/                    # App Router sayfaları
-│   ├── components/             # UI bileşenleri
-│   └── lib/                    # API istemcileri, hook’lar, store
-├── main.py                     # Yerel geliştirme giriş noktası
-├── requirements.txt            # Python bağımlılıkları
-├── Dockerfile
-├── docker-compose.yml
-├── Makefile                    # Geliştirme kısayolları
-└── .env.template               # Ortam değişkeni şablonu
+---
+
+## 🏗️ Architecture
+```mermaid
+graph TD
+    subgraph Client [Client Tier - Next.js]
+        FE[Frontend SPA Console] --> |RAG & Assistant Chat| PL[Playground & Assistant]
+        FE --> |Upload Files / Import URLs| DI[Document Management]
+    end
+
+    subgraph Server [Backend Tier - FastAPI]
+        API[FastAPI Gateway]
+        DB[(PostgreSQL + pgvector)]
+        REDIS[(Redis Queue)]
+        WRK[arq Ingestion Worker]
+        EMB[Sentence Transformers / BAAI-bge-m3]
+        LLM[OpenAI-compatible LLM / Ollama]
+    end
+
+    FE -->|REST API Requests| API
+    API -->|Read/Write Metadata| DB
+    API -->|Enqueue Ingest Job| REDIS
+    REDIS -->|Dequeue Job| WRK
+    WRK -->|Extract Text| WRK
+    WRK -->|Generate Embeddings| EMB
+    WRK -->|Save Chunks & Vectors| DB
+    API -->|Semantic Search Query| DB
+    API -->|Chat Completion| LLM
+    
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef highlight fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    class FE,API,WRK highlight;
 ```
 
-### Frontend sayfaları
+---
 
-| Yol | Açıklama |
-|-----|----------|
-| `/dashboard` | Genel istatistikler ve aktivite |
-| `/collections` | Koleksiyon listesi ve oluşturma |
-| `/collections/[id]` | Koleksiyon detayı ve ayarları |
-| `/documents` | Belge listesi ve yükleme |
-| `/documents/[id]` | Belge detayı ve parçalar |
-| `/playground` | RAG sorgu laboratuvarı |
-| `/prompts` | Asistan sistem prompt düzenleyici |
-| `/logs` | İşlem izleri (API iskeleti) |
-
-## Gereksinimler
-
-- **Docker Compose** (önerilen): Docker 24+, Docker Compose v2
-- **Yerel geliştirme**: Python 3.11+, Node.js 20+, Make
-
-## Hızlı başlangıç (Docker Compose)
+## 🚀 Quick Start (Docker)
+> [!NOTE]
+> Docker and Docker Compose are required to spin up the containerized stack.
 
 ```bash
+# 1. Copy the environment template
 cp .env.template .env
+
+# 2. Run the environment
 make up
+# or: docker compose up --build
 ```
 
-Servisler:
+Once the stack is running, the following services will be available:
 
-| Servis | Adres |
-|--------|-------|
-| Web arayüzü | http://localhost:3000 |
-| API | http://localhost:8000 |
-| API docs | http://localhost:8000/docs |
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
+| Service | Address |
+|---------|---------|
+| **Web Console** | [http://localhost:3000](http://localhost:3000) |
+| **API Gateway** | [http://localhost:8000](http://localhost:8000) |
+| **Interactive API Docs (Swagger)** | [http://localhost:8000/docs](http://localhost:8000/docs) |
+| **PostgreSQL Database** | `localhost:5432` |
+| **Redis Queue** | `localhost:6379` |
 
-Durdurmak:
-
+To stop the containers:
 ```bash
 make down
 ```
 
-Logları izlemek:
-
+To monitor real-time logs:
 ```bash
 make compose-logs
 ```
 
-## Yerel geliştirme
+---
 
-Altyapıyı Docker’da, uygulamayı sanal ortamda çalıştırma:
+## 💻 Local Installation
+If you prefer running the infrastructure (database and queue) via Docker, but running the API gateway, background worker, and React frontend locally:
 
+### 1. Configure Local Environment
+Copy the configuration template:
 ```bash
 cp .env.template .env
 ```
-
-`.env` içinde yerel mod için şu satırların yorumunu kaldırın:
-
+Uncomment and adjust connection parameters in your `.env` for local mode:
 ```env
 DATABASE_URL=postgresql://vectordock:vectordock@localhost:5432/vectordock
 REDIS_URL=redis://localhost:6379/0
 UPLOAD_DIR=./data/uploads
 ```
 
-Kurulum ve çalıştırma:
-
+### 2. Set Up Infrastructure
+Start only PostgreSQL and Redis containers, initialize your python virtual environment, install dependencies, and run database migrations:
 ```bash
-make install          # venv + pip + npm ci
-make infra-up         # postgres + redis
-make migrate          # alembic upgrade head
+# Install virtual environment, backend pip requirements, and frontend npm packages
+make install
+
+# Spin up PostgreSQL + Redis containers
+make infra-up
+
+# Run Alembic migrations to set up the database schema
+make migrate
 ```
 
-Üç ayrı terminalde:
-
+### 3. Start Development Services
+Run the following three commands in separate terminal sessions:
 ```bash
-make dev-api          # http://localhost:8000
-make dev-worker       # arq ingestion worker
-make dev-web          # http://localhost:3000
+# Start FastAPI backend (runs on http://localhost:8000)
+make dev-api
+
+# Start arq ingestion worker (handles document chunking & embeddings)
+make dev-worker
+
+# Start Next.js frontend (runs on http://localhost:3000)
+make dev-web
+```
+*(To list all available Makefile targets, run `make help`)*
+
+---
+
+## ⚙️ Environment Variables
+The application can be configured using a `.env` file at the root directory:
+
+| Variable | Description | Default / Example |
+|----------|-------------|-------------------|
+| `DATABASE_URL` | PostgreSQL connection string (auto-generated in Docker Compose) | `postgresql://vectordock:vectordock@localhost:5432/vectordock` |
+| `REDIS_URL` | Redis server connection URI | `redis://localhost:6379/0` |
+| `UPLOAD_DIR` | Directory to temporarily store uploaded files | `./data/uploads` |
+| `EMBEDDING_MODEL` | Hugging Face model identifier for generating vectors | `sentence-transformers` (e.g. `BAAI/bge-m3`) |
+| `EMBEDDING_DIMENSION` | Dimension size of the embedding model | `1024` |
+| `MAX_UPLOAD_MB` | Maximum allowed size (in MB) for uploaded files | `10` |
+| `CORS_ORIGINS` | Permitted origins allowed to access the API Gateway | `http://localhost:3000` |
+| `OLLAMA_BASE_URL` | Base URL endpoint for Ollama or OpenAI-compatible model API | `http://127.0.0.1:11434` |
+| `OLLAMA_API_KEY` | Optional API Key for LLM services (e.g., NVIDIA NIM) | `None` |
+| `OLLAMA_CHAT_MODEL` | Text model name to be used for LLM assistant chat | `qwen3.5:397b-cloud` |
+| `OLLAMA_TIMEOUT_SECONDS` | Maximum connection timeout for assistant requests | `180.0` |
+
+---
+
+## 📂 Project Structure
+```
+VectorDock/
+├── app/                        # Python Application Package
+│   ├── main.py                 # FastAPI Application & Router configuration
+│   ├── config.py               # Application Settings (Pydantic-Settings)
+│   ├── api/                    # REST API Endpoints
+│   │   ├── collections.py      # Collections CRUD
+│   │   ├── documents.py        # Ingestion, status, chunks management
+│   │   ├── stats.py            # Dashboard metrics & active logs
+│   │   ├── playground.py       # RAG queries & retrieval evaluation
+│   │   └── assistant.py        # Chat assistant interfaces
+│   ├── db/                     # Database schemas and sessions
+│   │   ├── models.py           # SQLAlchemy tables (Collections, Chunks, etc.)
+│   │   ├── session.py          # Async Database Session setup
+│   │   └── base.py             # Declarative Base
+│   ├── schemas/                # Pydantic Request & Response validation models
+│   ├── services/               # Core Business Logic
+│   │   ├── ingestion.py        # Master Ingestion pipeline
+│   │   ├── extraction.py       # Text parsing from PDF/DOCX/TXT/Markdown
+│   │   ├── chunking.py         # Advanced text chunking & splitter strategies
+│   │   ├── embedding.py        # Sentence-Transformers vector generation
+│   │   ├── playground_rag.py   # RAG pipeline implementation
+│   │   ├── ollama_client.py    # OpenAI-compatible API connector
+│   │   └── assistant_prompt.py # Assistant prompts engine
+│   └── workers/                # arq queue configuration and tasks
+│       ├── settings.py
+│       └── tasks.py            # Async tasks (e.g. ingest_document)
+├── alembic/                    # Alembic Database Migrations folder
+├── frontend/                   # Next.js Management Web Console
+│   ├── app/                    # App Router Pages
+│   ├── components/             # Reusable shadcn/ui React components
+│   └── lib/                    # API clients, state store, React Hooks
+├── main.py                     # Local startup script
+├── requirements.txt            # Python Backend dependencies
+├── Dockerfile                  # API & Worker Docker build setup
+├── docker-compose.yml          # Container configuration for all services
+├── Makefile                    # Target shortcuts for dev scripts
+└── .env.template               # Standard configuration template
 ```
 
-Tüm make hedefleri için:
+---
 
-```bash
-make help
-```
+## 📡 API Reference
+| Endpoint Prefix | Description | Features |
+|-----------------|-------------|----------|
+| `/api/collections` | Collections CRUD | Create, Read, Update, Delete vector index profiles |
+| `/api/documents` | Documents Ingestion | Upload, Fetch from URL, Retrieve Status, Reprocess, Delete |
+| `/api/stats` | Analytics Metrics | Ingestion metrics, activity counts, document listings |
+| `/api/playground` | Playground RAG | Direct vector querying, document comparison, models list |
+| `/api/assistant` | Chat Assistant | Dialogue generation, custom prompt template configuration |
 
-## Ortam değişkenleri
-
-`.env.template` dosyasından kopyalayın. Önemli alanlar:
-
-| Değişken | Açıklama |
-|----------|----------|
-| `POSTGRES_*` | Docker Compose Postgres ayarları |
-| `REDIS_URL` | Redis bağlantı dizesi |
-| `UPLOAD_DIR` | Yüklenen dosyaların dizini |
-| `EMBEDDING_MODEL` | sentence-transformers model adı |
-| `EMBEDDING_DIMENSION` | Vektör boyutu (varsayılan: 1024) |
-| `MAX_UPLOAD_MB` | Maksimum yükleme boyutu |
-| `CORS_ORIGINS` | API’ye izin verilen origin’ler |
-| `NEXT_PUBLIC_API_URL` | Frontend → API adresi |
-| `OLLAMA_BASE_URL` | OpenAI uyumlu LLM uç noktası |
-| `OLLAMA_API_KEY` | Sağlayıcı API anahtarı (opsiyonel) |
-| `OLLAMA_CHAT_MODEL` | Sohbet modeli adı |
-
-> Docker Compose modunda `DATABASE_URL` yazmayın; `POSTGRES_*` değişkenlerinden otomatik üretilir.
-
-## API uçları
-
-| Prefix | Uçlar |
-|--------|-------|
-| `/api/collections` | CRUD |
-| `/api/documents` | listele, yükle, URL’den al, parçalar, yeniden indeksle, sil |
-| `/api/stats` | genel bakış, aktivite |
-| `/api/playground` | RAG sorgusu, Ollama model listesi |
-| `/api/assistant` | sohbet, varsayılan prompt |
-| `/api/logs` | işlem günlükleri (henüz boş dönüş) |
-
-İnteraktif dokümantasyon: http://localhost:8000/docs
-
-## Belge işleme hattı
-
-1. Dosya veya URL ile belge oluşturulur (`status: pending`)
-2. arq kuyruğuna `ingest_document` görevi eklenir
-3. Worker metni çıkarır (PDF/DOCX/TXT/MD)
-4. Koleksiyon ayarlarına göre parçalanır
-5. Gömme modeli ile vektörleştirilir
-6. `document_chunks` tablosuna yazılır (`status: ready`)
-
-## Veritabanı migrasyonları
-
-```bash
-make migrate          # upgrade head
-make downgrade        # bir revizyon geri
-make db-current       # mevcut revizyon
-make db-history       # geçmiş
-```
-
-Migrasyon dosyaları: `alembic/versions/`
-
-## Frontend
-
-Ayrıntılı frontend notları: [frontend/README.md](frontend/README.md)
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-Production build:
-
-```bash
-make build-web-prod
-```
-
-## Geliştirme notları
-
-- API katmanı yalnızca istek/yanıt orkestrasyonu yapar; iş mantığı `app/services/` altındadır.
-- Worker, gömme modelini başlangıçta belleğe yükler; ilk ingestion biraz daha uzun sürebilir.
-- LLM sağlayıcısı OpenAI uyumlu API bekler (NVIDIA Integrate veya yerel Ollama).
-- Frontend, `NEXT_PUBLIC_API_URL` üzerinden FastAPI ile konuşur.
+> [!TIP]
+> Interactive API Docs (Swagger format) can be viewed at: `http://localhost:8000/docs`
